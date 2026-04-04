@@ -147,6 +147,26 @@ npm run dev
 - **消息队列**：RabbitMQ 3（可选，不影响核心功能）
 - **容器化**：Docker + Docker Compose + Nginx
 
+## API 接口概览
+
+所有 API 以 `/api` 为前缀，受保护接口需携带 `Authorization: Bearer <token>` 请求头。
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/api/login` | 用户登录，返回 JWT Token |
+| GET | `/api/profile` | 获取当前用户信息 |
+| GET | `/api/dashboard` | 获取仪表盘统计数据 |
+| GET/POST/PUT/DELETE | `/api/agents` | 智能体 CRUD |
+| GET/POST/DELETE | `/api/conversations` | 会话 CRUD |
+| GET/POST | `/api/conversations/:id/messages` | 消息列表和发送 |
+| GET | `/api/ws` | WebSocket 实时对话 |
+| GET | `/api/skills` | 技能中心列表 |
+| GET/POST | `/api/workflows` | 工作流 CRUD |
+| GET/POST | `/api/scheduled-tasks` | 定时任务 CRUD |
+| GET/PUT/POST | `/api/ai-providers` | AI 模型提供商配置和测试 |
+| GET/POST/PUT/DELETE/POST | `/api/cloud-platforms` | 云平台接入 CRUD 和连接测试 |
+| GET/POST/PUT/DELETE | `/api/users` | 用户管理（Admin 权限） |
+
 ## License
 
 MIT
