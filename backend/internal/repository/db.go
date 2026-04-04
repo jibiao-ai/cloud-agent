@@ -8,6 +8,7 @@ import (
 	"github.com/jibiao-ai/cloud-agent/internal/config"
 	"github.com/jibiao-ai/cloud-agent/internal/model"
 	"github.com/jibiao-ai/cloud-agent/pkg/logger"
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -90,8 +91,12 @@ func InitDB(cfg config.DatabaseConfig) error {
 
 func seedDefaultData(db *gorm.DB) {
 	// Ensure default admin user exists with correct bcrypt password hash.
-	// Uses upsert logic: if admin exists but has wrong/plaintext password, fix it.
-	const adminPasswordHash = "$2a$10$5HCtytk2H8rwfdEB9ysMcepF3tLhnpiPE5XoktVUMwMOgyF2quBlO" // admin123
+	// Default password: Admin@2024!  (meets strength policy: upper/lower/digit/special, >=9 chars)
+	const adminPlainPassword = "Admin@2024!"
+
+	// Dynamically generate bcrypt hash so it is always valid
+	adminHashBytes, _ := bcrypt.GenerateFromPassword([]byte(adminPlainPassword), 10)
+	adminPasswordHash := string(adminHashBytes)
 
 	var admin model.User
 	result := db.Where("username = ?", "admin").First(&admin)
@@ -106,11 +111,6 @@ func seedDefaultData(db *gorm.DB) {
 		db.Create(&admin)
 		logger.Log.Info("Default admin user created")
 	} else {
-		// Admin exists — ensure password is the correct bcrypt hash (fix plaintext / wrong hash)
-		if admin.Password != adminPasswordHash {
-			db.Model(&admin).Update("password", adminPasswordHash)
-			logger.Log.Info("Default admin user password reset to bcrypt hash")
-		}
 		// Ensure role is admin
 		if admin.Role != "admin" {
 			db.Model(&admin).Update("role", "admin")
