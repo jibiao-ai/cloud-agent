@@ -167,14 +167,19 @@ func main() {
 			// Task Logs
 			auth.GET("/task-logs", h.ListTaskLogs)
 
+			// AI Providers
+			auth.GET("/ai-providers", h.GetAIProviders)
+			auth.PUT("/ai-providers/:id", h.UpdateAIProvider)
+			auth.POST("/ai-providers/:id/test", h.TestAIProvider)
+
 			// Admin routes
 			admin := auth.Group("")
 			admin.Use(middleware.AdminMiddleware())
 			{
-				auth.GET("/users", h.ListUsers)
-				auth.POST("/users", h.CreateUser)
-				auth.PUT("/users/:id", h.UpdateUser)
-				auth.DELETE("/users/:id", h.DeleteUser)
+				admin.GET("/users", h.ListUsers)
+				admin.POST("/users", h.CreateUser)
+				admin.PUT("/users/:id", h.UpdateUser)
+				admin.DELETE("/users/:id", h.DeleteUser)
 			}
 		}
 	}

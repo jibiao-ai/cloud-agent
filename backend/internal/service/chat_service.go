@@ -251,11 +251,14 @@ func (s *ChatService) GetUsers() ([]model.User, error) {
 
 // CreateUser creates a new user
 func (s *ChatService) CreateUser(user *model.User) error {
-	hashed, err := HashPassword(user.Password)
-	if err != nil {
-		return err
+	// Hash password only if non-empty and not already a bcrypt hash
+	if user.Password != "" && !isBcryptHash(user.Password) {
+		hashed, err := HashPassword(user.Password)
+		if err != nil {
+			return err
+		}
+		user.Password = hashed
 	}
-	user.Password = hashed
 	return repository.DB.Create(user).Error
 }
 
@@ -265,7 +268,8 @@ func (s *ChatService) UpdateUser(user *model.User) error {
 		"email": user.Email,
 		"role":  user.Role,
 	}
-	if user.Password != "" {
+	// Hash password only if non-empty and not already a bcrypt hash
+	if user.Password != "" && !isBcryptHash(user.Password) {
 		hashed, err := HashPassword(user.Password)
 		if err != nil {
 			return err
