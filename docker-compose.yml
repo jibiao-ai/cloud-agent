@@ -1,0 +1,123 @@
+version: '3.8'
+
+services:
+  # MySQL Database
+  mysql:
+    image: mysql:8.0
+    container_name: cloud-agent-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root123
+      MYSQL_DATABASE: cloud_agent
+      MYSQL_USER: cloudagent
+      MYSQL_PASSWORD: cloudagent123
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./docker/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot123"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - cloud-agent-net
+
+  # RabbitMQ Message Queue
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: cloud-agent-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - cloud-agent-net
+
+  # Go Backend API Server
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      network: host
+    container_name: cloud-agent-backend
+    restart: unless-stopped
+    environment:
+      # Server
+      SERVER_PORT: "8080"
+      GIN_MODE: release
+      # Database
+      DB_HOST: mysql
+      DB_PORT: "3306"
+      DB_USER: cloudagent
+      DB_PASSWORD: cloudagent123
+      DB_NAME: cloud_agent
+      # RabbitMQ
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: "5672"
+      RABBITMQ_USER: guest
+      RABBITMQ_PASSWORD: guest
+      # EasyStack Configuration
+      EASYSTACK_AUTH_URL: ${EASYSTACK_AUTH_URL:-https://keystone.example.com}
+      EASYSTACK_USERNAME: ${EASYSTACK_USERNAME:-admin}
+      EASYSTACK_PASSWORD: ${EASYSTACK_PASSWORD:-}
+      EASYSTACK_DOMAIN: ${EASYSTACK_DOMAIN:-default}
+      EASYSTACK_PROJECT: ${EASYSTACK_PROJECT:-admin}
+      EASYSTACK_PROJECT_ID: ${EASYSTACK_PROJECT_ID:-}
+      # AI Configuration
+      AI_PROVIDER: ${AI_PROVIDER:-openai}
+      AI_API_KEY: ${AI_API_KEY:-}
+      AI_BASE_URL: ${AI_BASE_URL:-https://api.openai.com/v1}
+      AI_MODEL: ${AI_MODEL:-gpt-4}
+      # RabbitMQ retry (production: 30 retries)
+      MQ_RETRIES: "30"
+      # Frontend dist path inside container
+      FRONTEND_DIST: /app/frontend/dist
+      # Logging
+      LOG_LEVEL: info
+    ports:
+      - "8080:8080"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - ./frontend/dist:/app/frontend/dist:ro
+    networks:
+      - cloud-agent-net
+
+  # React Frontend (Nginx)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      network: host
+    container_name: cloud-agent-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - cloud-agent-net
+
+networks:
+  cloud-agent-net:
+    driver: bridge
+
+volumes:
+  mysql_data:
+  rabbitmq_data:
