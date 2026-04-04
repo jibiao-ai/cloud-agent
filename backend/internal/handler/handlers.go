@@ -350,7 +350,7 @@ func (h *Handler) CreateScheduledTask(c *gin.Context) {
 // ==================== Users (Admin) ====================
 
 func (h *Handler) ListUsers(c *gin.Context) {
-	users, err := h.chatService.GetUsers()
+	users, err := service.GetUsers()
 	if err != nil {
 		response.InternalError(c, err.Error())
 		return
@@ -364,10 +364,12 @@ func (h *Handler) CreateUser(c *gin.Context) {
 		response.BadRequest(c, "invalid request")
 		return
 	}
-	if err := h.chatService.CreateUser(&user); err != nil {
-		response.InternalError(c, err.Error())
+	if err := service.CreateUser(&user); err != nil {
+		response.BadRequest(c, err.Error())
 		return
 	}
+	// Clear password hash from response
+	user.Password = ""
 	response.Success(c, user)
 }
 
@@ -379,16 +381,18 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 		return
 	}
 	user.ID = uint(id)
-	if err := h.chatService.UpdateUser(&user); err != nil {
-		response.InternalError(c, err.Error())
+	if err := service.UpdateUser(&user); err != nil {
+		response.BadRequest(c, err.Error())
 		return
 	}
+	// Clear password hash from response
+	user.Password = ""
 	response.Success(c, user)
 }
 
 func (h *Handler) DeleteUser(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 32)
-	if err := h.chatService.DeleteUser(uint(id)); err != nil {
+	if err := service.DeleteUser(uint(id)); err != nil {
 		response.InternalError(c, err.Error())
 		return
 	}

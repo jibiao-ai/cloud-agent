@@ -176,10 +176,10 @@ func main() {
 			admin := auth.Group("")
 			admin.Use(middleware.AdminMiddleware())
 			{
-				auth.GET("/users", h.ListUsers)
-				auth.POST("/users", h.CreateUser)
-				auth.PUT("/users/:id", h.UpdateUser)
-				auth.DELETE("/users/:id", h.DeleteUser)
+				admin.GET("/users", h.ListUsers)
+				admin.POST("/users", h.CreateUser)
+				admin.PUT("/users/:id", h.UpdateUser)
+				admin.DELETE("/users/:id", h.DeleteUser)
 			}
 		}
 	}
