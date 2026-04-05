@@ -849,9 +849,425 @@ func (h *Handler) TestAIProvider(c *gin.Context) {
 
 // ==================== Resource Monitor ====================
 
+// authenticateEasyStack obtains a Keystone token for an EasyStack platform.
+// Returns (token, error). Includes project scope for proper API access.
+func authenticateEasyStack(client *http.Client, p model.CloudPlatform) (string, error) {
+	domain := p.DomainName
+	if domain == "" {
+		domain = "Default"
+	}
+	authPayload := map[string]interface{}{
+		"auth": map[string]interface{}{
+			"identity": map[string]interface{}{
+				"methods": []string{"password"},
+				"password": map[string]interface{}{
+					"user": map[string]interface{}{
+						"name":     p.Username,
+						"password": p.Password,
+						"domain":   map[string]string{"name": domain},
+					},
+				},
+			},
+			"scope": map[string]interface{}{
+				"project": map[string]interface{}{
+					"name":   p.ProjectName,
+					"domain": map[string]string{"name": domain},
+				},
+			},
+		},
+	}
+	authBody, _ := json.Marshal(authPayload)
+	keystoneURL := strings.TrimRight(p.AuthURL, "/") + "/v3/auth/tokens"
+	authReq, err := http.NewRequest("POST", keystoneURL, bytes.NewReader(authBody))
+	if err != nil {
+		return "", fmt.Errorf("create auth request: %w", err)
+	}
+	authReq.Header.Set("Content-Type", "application/json")
+	authResp, err := client.Do(authReq)
+	if err != nil {
+		return "", fmt.Errorf("auth request failed: %w", err)
+	}
+	defer authResp.Body.Close()
+	if authResp.StatusCode != 200 && authResp.StatusCode != 201 {
+		body, _ := io.ReadAll(authResp.Body)
+		return "", fmt.Errorf("auth failed (HTTP %d): %s", authResp.StatusCode, string(body))
+	}
+	token := authResp.Header.Get("X-Subject-Token")
+	if token == "" {
+		return "", fmt.Errorf("empty X-Subject-Token in response")
+	}
+	return token, nil
+}
+
+// authenticateZStack obtains a session token for a ZStack platform.
+// Returns (sessionId, error).
+func authenticateZStack(client *http.Client, p model.CloudPlatform) (string, error) {
+	var loginPayload map[string]interface{}
+
+	if p.AccessKeyID != "" && p.AccessKeySecret != "" {
+		loginPayload = map[string]interface{}{
+			"logInByAccount": map[string]string{
+				"accountName": p.AccessKeyID,
+				"password":    p.AccessKeySecret,
+			},
+		}
+	} else if p.Username != "" && p.Password != "" {
+		loginPayload = map[string]interface{}{
+			"logInByAccount": map[string]string{
+				"accountName": p.Username,
+				"password":    p.Password,
+			},
+		}
+	} else {
+		return "", fmt.Errorf("ZStack platform missing credentials")
+	}
+
+	loginURL := strings.TrimRight(p.Endpoint, "/") + "/zstack/v1/accounts/login"
+	loginBody, _ := json.Marshal(loginPayload)
+	req, err := http.NewRequest("PUT", loginURL, bytes.NewReader(loginBody))
+	if err != nil {
+		return "", fmt.Errorf("create login request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("login request failed: %w", err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != 200 {
+		return "", fmt.Errorf("ZStack login failed (HTTP %d): %s", resp.StatusCode, string(body))
+	}
+
+	// Parse session UUID from response: {"inventory":{"uuid":"..."}}
+	var loginResp struct {
+		Inventory struct {
+			UUID string `json:"uuid"`
+		} `json:"inventory"`
+	}
+	if err := json.Unmarshal(body, &loginResp); err != nil {
+		return "", fmt.Errorf("parse ZStack login response: %w", err)
+	}
+	if loginResp.Inventory.UUID == "" {
+		return "", fmt.Errorf("empty session UUID from ZStack login")
+	}
+	return loginResp.Inventory.UUID, nil
+}
+
+// fetchEasyStackServers fetches the total VM count from a connected EasyStack platform.
+// Uses GET /v2.1/{project_id}/servers/detail?all_tenants=true to count all VMs.
+func fetchEasyStackServers(client *http.Client, baseURL, projectID, token string) int {
+	if projectID == "" {
+		return 0
+	}
+	serversURL := fmt.Sprintf("%s/v2.1/%s/servers/detail?all_tenants=true",
+		strings.TrimRight(baseURL, "/"), projectID)
+	req, err := http.NewRequest("GET", serversURL, nil)
+	if err != nil {
+		logger.Log.Warnf("EasyStack: create servers request failed: %v", err)
+		return 0
+	}
+	req.Header.Set("X-Auth-Token", token)
+	resp, err := client.Do(req)
+	if err != nil {
+		logger.Log.Warnf("EasyStack: fetch servers failed: %v", err)
+		return 0
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	var serversResp struct {
+		Servers []json.RawMessage `json:"servers"`
+	}
+	if err := json.Unmarshal(body, &serversResp); err != nil {
+		logger.Log.Warnf("EasyStack: parse servers response failed: %v", err)
+		return 0
+	}
+	return len(serversResp.Servers)
+}
+
+// fetchEasyStackVolumes fetches the total volume count from a connected EasyStack platform.
+// Uses GET /v2/{project_id}/volumes/detail?all_tenants=true to count all volumes.
+func fetchEasyStackVolumes(client *http.Client, baseURL, projectID, token string) int {
+	if projectID == "" {
+		return 0
+	}
+	volumesURL := fmt.Sprintf("%s/v2/%s/volumes/detail?all_tenants=true",
+		strings.TrimRight(baseURL, "/"), projectID)
+	req, err := http.NewRequest("GET", volumesURL, nil)
+	if err != nil {
+		logger.Log.Warnf("EasyStack: create volumes request failed: %v", err)
+		return 0
+	}
+	req.Header.Set("X-Auth-Token", token)
+	resp, err := client.Do(req)
+	if err != nil {
+		logger.Log.Warnf("EasyStack: fetch volumes failed: %v", err)
+		return 0
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	var volumesResp struct {
+		Volumes []json.RawMessage `json:"volumes"`
+	}
+	if err := json.Unmarshal(body, &volumesResp); err != nil {
+		logger.Log.Warnf("EasyStack: parse volumes response failed: %v", err)
+		return 0
+	}
+	return len(volumesResp.Volumes)
+}
+
+// AlertItem is the unified alert structure returned by the resource monitor API.
+type AlertItem struct {
+	Name      string `json:"name"`
+	Severity  string `json:"severity"`
+	State     string `json:"state"`
+	Platform  string `json:"platform"`
+	Timestamp string `json:"timestamp"`
+}
+
+// fetchEasyStackAlerts fetches alerts from the EasyStack observable service.
+// Uses GET /v1/{project_id}/alerts (per ECF 6.2.1 API docs).
+// Response format: { "code": 0, "data": { "statistics": {...}, "items": [...] } }
+func fetchEasyStackAlerts(client *http.Client, baseURL, projectID, token, platformName string) (firing, resolved int, alerts []AlertItem) {
+	if projectID == "" {
+		return 0, 0, nil
+	}
+	alertsURL := fmt.Sprintf("%s/v1/%s/alerts?all_tenants=true",
+		strings.TrimRight(baseURL, "/"), projectID)
+	req, err := http.NewRequest("GET", alertsURL, nil)
+	if err != nil {
+		logger.Log.Warnf("EasyStack: create alerts request failed: %v", err)
+		return 0, 0, nil
+	}
+	req.Header.Set("X-Auth-Token", token)
+	resp, err := client.Do(req)
+	if err != nil {
+		logger.Log.Warnf("EasyStack: fetch alerts failed: %v", err)
+		return 0, 0, nil
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+
+	// EasyStack observable service response format:
+	// { "code": 0, "data": { "statistics": { "total": N, "critical": N, "warning": N, "info": N },
+	//   "items": [ { "alertNameCN": "...", "severity": "critical", "status": "firing", "startsAt": "..." } ] } }
+	var alertsResp struct {
+		Code int `json:"code"`
+		Data struct {
+			Statistics struct {
+				Total    int `json:"total"`
+				Critical int `json:"critical"`
+				Warning  int `json:"warning"`
+				Info     int `json:"info"`
+			} `json:"statistics"`
+			Items []struct {
+				AlertNameCN string `json:"alertNameCN"`
+				AlertNameEN string `json:"alertNameEN"`
+				Severity    string `json:"severity"`
+				Status      string `json:"status"`
+				StartsAt    string `json:"startsAt"`
+				EndsAt      string `json:"endsAt"`
+				UpdatedAt   string `json:"updatedAt"`
+			} `json:"items"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(body, &alertsResp); err != nil {
+		// Fallback: try legacy format { "alerts": [...] }
+		var legacyResp struct {
+			Alerts []struct {
+				Name      string `json:"name"`
+				Severity  string `json:"severity"`
+				State     string `json:"state"`
+				Timestamp string `json:"timestamp"`
+			} `json:"alerts"`
+		}
+		if json.Unmarshal(body, &legacyResp) == nil && len(legacyResp.Alerts) > 0 {
+			for _, a := range legacyResp.Alerts {
+				state := a.State
+				if state == "firing" {
+					firing++
+				} else {
+					resolved++
+				}
+				alerts = append(alerts, AlertItem{
+					Name:      a.Name,
+					Severity:  a.Severity,
+					State:     state,
+					Platform:  platformName,
+					Timestamp: a.Timestamp,
+				})
+			}
+		}
+		return firing, resolved, alerts
+	}
+
+	// Process standard EasyStack observable service response
+	for _, item := range alertsResp.Data.Items {
+		// Map EasyStack "status" to our unified "state"
+		state := item.Status // "firing", "silenced", "resolved"
+		if state == "firing" {
+			firing++
+		} else {
+			resolved++
+		}
+		// Prefer Chinese alert name, fall back to English
+		name := item.AlertNameCN
+		if name == "" {
+			name = item.AlertNameEN
+		}
+		// Use startsAt as timestamp
+		ts := item.StartsAt
+		if ts == "" {
+			ts = item.UpdatedAt
+		}
+		alerts = append(alerts, AlertItem{
+			Name:      name,
+			Severity:  item.Severity,
+			State:     state,
+			Platform:  platformName,
+			Timestamp: ts,
+		})
+	}
+	return firing, resolved, alerts
+}
+
+// fetchZStackVMs fetches the total VM count from a connected ZStack platform.
+// Uses GET /zstack/v1/vm-instances (QueryVmInstance API).
+func fetchZStackVMs(client *http.Client, endpoint, sessionID string) int {
+	apiURL := strings.TrimRight(endpoint, "/") + "/zstack/v1/vm-instances"
+	req, err := http.NewRequest("GET", apiURL, nil)
+	if err != nil {
+		logger.Log.Warnf("ZStack: create VM request failed: %v", err)
+		return 0
+	}
+	req.Header.Set("Authorization", "OAuth "+sessionID)
+	resp, err := client.Do(req)
+	if err != nil {
+		logger.Log.Warnf("ZStack: fetch VMs failed: %v", err)
+		return 0
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+
+	// ZStack response: { "inventories": [...] } or { "total": N }
+	var vmResp struct {
+		Inventories []json.RawMessage `json:"inventories"`
+		Total       int               `json:"total"`
+	}
+	if err := json.Unmarshal(body, &vmResp); err != nil {
+		logger.Log.Warnf("ZStack: parse VM response failed: %v", err)
+		return 0
+	}
+	if vmResp.Total > 0 {
+		return vmResp.Total
+	}
+	return len(vmResp.Inventories)
+}
+
+// fetchZStackVolumes fetches the total volume count from a connected ZStack platform.
+// Uses GET /zstack/v1/volumes (QueryVolume API).
+func fetchZStackVolumes(client *http.Client, endpoint, sessionID string) int {
+	apiURL := strings.TrimRight(endpoint, "/") + "/zstack/v1/volumes"
+	req, err := http.NewRequest("GET", apiURL, nil)
+	if err != nil {
+		logger.Log.Warnf("ZStack: create volume request failed: %v", err)
+		return 0
+	}
+	req.Header.Set("Authorization", "OAuth "+sessionID)
+	resp, err := client.Do(req)
+	if err != nil {
+		logger.Log.Warnf("ZStack: fetch volumes failed: %v", err)
+		return 0
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+
+	var volResp struct {
+		Inventories []json.RawMessage `json:"inventories"`
+		Total       int               `json:"total"`
+	}
+	if err := json.Unmarshal(body, &volResp); err != nil {
+		logger.Log.Warnf("ZStack: parse volume response failed: %v", err)
+		return 0
+	}
+	if volResp.Total > 0 {
+		return volResp.Total
+	}
+	return len(volResp.Inventories)
+}
+
+// fetchZStackAlerts fetches alerts from a connected ZStack platform.
+// Uses GET /zstack/v1/alarms (QueryAlarm API).
+func fetchZStackAlerts(client *http.Client, endpoint, sessionID, platformName string) (firing, resolved int, alerts []AlertItem) {
+	apiURL := strings.TrimRight(endpoint, "/") + "/zstack/v1/alarms"
+	req, err := http.NewRequest("GET", apiURL, nil)
+	if err != nil {
+		logger.Log.Warnf("ZStack: create alarms request failed: %v", err)
+		return 0, 0, nil
+	}
+	req.Header.Set("Authorization", "OAuth "+sessionID)
+	resp, err := client.Do(req)
+	if err != nil {
+		logger.Log.Warnf("ZStack: fetch alarms failed: %v", err)
+		return 0, 0, nil
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+
+	var alarmsResp struct {
+		Inventories []struct {
+			UUID        string `json:"uuid"`
+			Name        string `json:"name"`
+			Description string `json:"description"`
+			State       string `json:"state"`  // Enabled/Disabled
+			Status      string `json:"status"` // Alarm/OK
+			Severity    string `json:"severity"`
+			CreateDate  string `json:"createDate"`
+			LastOpDate  string `json:"lastOpDate"`
+		} `json:"inventories"`
+	}
+	if err := json.Unmarshal(body, &alarmsResp); err != nil {
+		logger.Log.Warnf("ZStack: parse alarms response failed: %v", err)
+		return 0, 0, nil
+	}
+
+	for _, alarm := range alarmsResp.Inventories {
+		state := "resolved"
+		if alarm.Status == "Alarm" || (alarm.State == "Enabled" && alarm.Status != "OK") {
+			state = "firing"
+			firing++
+		} else {
+			resolved++
+		}
+		severity := alarm.Severity
+		if severity == "" {
+			severity = "warning"
+		}
+		ts := alarm.LastOpDate
+		if ts == "" {
+			ts = alarm.CreateDate
+		}
+		name := alarm.Name
+		if name == "" {
+			name = alarm.Description
+		}
+		alerts = append(alerts, AlertItem{
+			Name:      name,
+			Severity:  strings.ToLower(severity),
+			State:     state,
+			Platform:  platformName,
+			Timestamp: ts,
+		})
+	}
+	return firing, resolved, alerts
+}
+
 // GetResourceMonitor returns resource monitoring data for the big-screen dashboard.
-// It aggregates: cloud platform count, VM/volume counts per platform,
-// alerting/resolved alert counts, and component health status.
+// It aggregates: cloud platform count, VM/volume counts per platform (via real API calls),
+// alerting/resolved alert counts (via real API calls), and component health status.
+//
+// For EasyStack platforms: uses Keystone auth → Nova/Cinder/Observable APIs
+// For ZStack platforms:    uses ZStack login  → VM/Volume/Alarm query APIs
 func (h *Handler) GetResourceMonitor(c *gin.Context) {
 	// 1. Cloud platform list + count
 	var platforms []model.CloudPlatform
@@ -862,20 +1278,25 @@ func (h *Handler) GetResourceMonitor(c *gin.Context) {
 
 	platformCount := len(platforms)
 
-	// 2. For every *connected* platform, try to fetch real data via EasyStack/ZStack APIs.
-	//    If the platform is not reachable we fall back to cached/static info.
+	// 2. For every *connected* platform, fetch real data via EasyStack/ZStack APIs.
 	type PlatformResource struct {
-		ID         uint   `json:"id"`
-		Name       string `json:"name"`
-		Type       string `json:"type"`
-		Status     string `json:"status"`
-		VMCount    int    `json:"vm_count"`
-		VolumeCount int   `json:"volume_count"`
+		ID          uint   `json:"id"`
+		Name        string `json:"name"`
+		Type        string `json:"type"`
+		Status      string `json:"status"`
+		VMCount     int    `json:"vm_count"`
+		VolumeCount int    `json:"volume_count"`
 	}
 	platformResources := make([]PlatformResource, 0, platformCount)
 
 	totalVMs := 0
 	totalVolumes := 0
+	firingAlerts := 0
+	resolvedAlerts := 0
+	var alertList []AlertItem
+
+	// Shared HTTP client with reasonable timeout for all platform API calls
+	apiClient := &http.Client{Timeout: 15 * time.Second}
 
 	for _, p := range platforms {
 		pr := PlatformResource{
@@ -885,87 +1306,53 @@ func (h *Handler) GetResourceMonitor(c *gin.Context) {
 			Status: p.Status,
 		}
 
-		// Only attempt real API calls for connected EasyStack platforms
-		if p.Status == "connected" && p.Type == "easystack" &&
-			p.AuthURL != "" && p.Username != "" && p.Password != "" {
+		switch {
+		// ── EasyStack platform ──
+		case p.Status == "connected" && p.Type == "easystack" &&
+			p.AuthURL != "" && p.Username != "" && p.Password != "":
 
-			// Build a temporary client to query the platform
-			client := &http.Client{Timeout: 10 * time.Second}
-
-			// Authenticate
-			domain := p.DomainName
-			if domain == "" {
-				domain = "Default"
+			token, err := authenticateEasyStack(apiClient, p)
+			if err != nil {
+				logger.Log.Warnf("EasyStack auth failed for %s: %v", p.Name, err)
+				break
 			}
-			authPayload := map[string]interface{}{
-				"auth": map[string]interface{}{
-					"identity": map[string]interface{}{
-						"methods": []string{"password"},
-						"password": map[string]interface{}{
-							"user": map[string]interface{}{
-								"name":     p.Username,
-								"password": p.Password,
-								"domain":   map[string]string{"name": domain},
-							},
-						},
-					},
-					"scope": map[string]interface{}{
-						"project": map[string]interface{}{
-							"name":   p.ProjectName,
-							"domain": map[string]string{"name": domain},
-						},
-					},
-				},
-			}
-			authBody, _ := json.Marshal(authPayload)
-			keystoneURL := strings.TrimRight(p.AuthURL, "/") + "/v3/auth/tokens"
-			authReq, err := http.NewRequest("POST", keystoneURL, bytes.NewReader(authBody))
-			if err == nil {
-				authReq.Header.Set("Content-Type", "application/json")
-				authResp, err := client.Do(authReq)
-				if err == nil {
-					defer authResp.Body.Close()
-					if authResp.StatusCode == 200 || authResp.StatusCode == 201 {
-						token := authResp.Header.Get("X-Subject-Token")
 
-						// --- Fetch servers ---
-						if p.ProjectID != "" {
-							serversURL := fmt.Sprintf("%s/v2.1/%s/servers/detail",
-								strings.TrimRight(p.AuthURL, "/"), p.ProjectID)
-							sReq, _ := http.NewRequest("GET", serversURL, nil)
-							sReq.Header.Set("X-Auth-Token", token)
-							sResp, sErr := client.Do(sReq)
-							if sErr == nil {
-								defer sResp.Body.Close()
-								sBody, _ := io.ReadAll(sResp.Body)
-								var serversResp struct {
-									Servers []json.RawMessage `json:"servers"`
-								}
-								if json.Unmarshal(sBody, &serversResp) == nil {
-									pr.VMCount = len(serversResp.Servers)
-								}
-							}
+			baseURL := strings.TrimRight(p.AuthURL, "/")
 
-							// --- Fetch volumes ---
-							volumesURL := fmt.Sprintf("%s/v2/%s/volumes/detail",
-								strings.TrimRight(p.AuthURL, "/"), p.ProjectID)
-							vReq, _ := http.NewRequest("GET", volumesURL, nil)
-							vReq.Header.Set("X-Auth-Token", token)
-							vResp, vErr := client.Do(vReq)
-							if vErr == nil {
-								defer vResp.Body.Close()
-								vBody, _ := io.ReadAll(vResp.Body)
-								var volumesResp struct {
-									Volumes []json.RawMessage `json:"volumes"`
-								}
-								if json.Unmarshal(vBody, &volumesResp) == nil {
-									pr.VolumeCount = len(volumesResp.Volumes)
-								}
-							}
-						}
-					}
-				}
+			// Fetch VMs (Nova API)
+			pr.VMCount = fetchEasyStackServers(apiClient, baseURL, p.ProjectID, token)
+
+			// Fetch Volumes (Cinder API)
+			pr.VolumeCount = fetchEasyStackVolumes(apiClient, baseURL, p.ProjectID, token)
+
+			// Fetch Alerts (Observable service API - per ECF 6.2.1 docs)
+			f, r, alerts := fetchEasyStackAlerts(apiClient, baseURL, p.ProjectID, token, p.Name)
+			firingAlerts += f
+			resolvedAlerts += r
+			alertList = append(alertList, alerts...)
+
+		// ── ZStack platform ──
+		case p.Status == "connected" && p.Type == "zstack" && p.Endpoint != "":
+
+			sessionID, err := authenticateZStack(apiClient, p)
+			if err != nil {
+				logger.Log.Warnf("ZStack auth failed for %s: %v", p.Name, err)
+				break
 			}
+
+			endpoint := strings.TrimRight(p.Endpoint, "/")
+
+			// Fetch VMs (QueryVmInstance API)
+			pr.VMCount = fetchZStackVMs(apiClient, endpoint, sessionID)
+
+			// Fetch Volumes (QueryVolume API)
+			pr.VolumeCount = fetchZStackVolumes(apiClient, endpoint, sessionID)
+
+			// Fetch Alerts (QueryAlarm API)
+			f, r, alerts := fetchZStackAlerts(apiClient, endpoint, sessionID, p.Name)
+			firingAlerts += f
+			resolvedAlerts += r
+			alertList = append(alertList, alerts...)
 		}
 
 		totalVMs += pr.VMCount
@@ -973,95 +1360,7 @@ func (h *Handler) GetResourceMonitor(c *gin.Context) {
 		platformResources = append(platformResources, pr)
 	}
 
-	// 3. Alerts – aggregate from all connected platforms.
-	//    We return firing_alerts and resolved_alerts counts.
-	firingAlerts := 0
-	resolvedAlerts := 0
-
-	type AlertItem struct {
-		Name      string `json:"name"`
-		Severity  string `json:"severity"`
-		State     string `json:"state"`
-		Platform  string `json:"platform"`
-		Timestamp string `json:"timestamp"`
-	}
-	var alertList []AlertItem
-
-	for _, p := range platforms {
-		if p.Status == "connected" && p.Type == "easystack" &&
-			p.AuthURL != "" && p.Username != "" && p.Password != "" {
-
-			client := &http.Client{Timeout: 10 * time.Second}
-			domain := p.DomainName
-			if domain == "" {
-				domain = "Default"
-			}
-			authPayload := map[string]interface{}{
-				"auth": map[string]interface{}{
-					"identity": map[string]interface{}{
-						"methods": []string{"password"},
-						"password": map[string]interface{}{
-							"user": map[string]interface{}{
-								"name":     p.Username,
-								"password": p.Password,
-								"domain":   map[string]string{"name": domain},
-							},
-						},
-					},
-				},
-			}
-			authBody, _ := json.Marshal(authPayload)
-			keystoneURL := strings.TrimRight(p.AuthURL, "/") + "/v3/auth/tokens"
-			authReq, err := http.NewRequest("POST", keystoneURL, bytes.NewReader(authBody))
-			if err == nil {
-				authReq.Header.Set("Content-Type", "application/json")
-				authResp, err := client.Do(authReq)
-				if err == nil {
-					defer authResp.Body.Close()
-					if authResp.StatusCode == 200 || authResp.StatusCode == 201 {
-						token := authResp.Header.Get("X-Subject-Token")
-
-						// Fetch alerts
-						alertsURL := fmt.Sprintf("%s/api/emla/alerts?project_id=%s",
-							strings.TrimRight(p.AuthURL, "/"), p.ProjectID)
-						aReq, _ := http.NewRequest("GET", alertsURL, nil)
-						aReq.Header.Set("X-Auth-Token", token)
-						aResp, aErr := client.Do(aReq)
-						if aErr == nil {
-							defer aResp.Body.Close()
-							aBody, _ := io.ReadAll(aResp.Body)
-							var alertsResp struct {
-								Alerts []struct {
-									Name      string `json:"name"`
-									Severity  string `json:"severity"`
-									State     string `json:"state"`
-									Timestamp string `json:"timestamp"`
-								} `json:"alerts"`
-							}
-							if json.Unmarshal(aBody, &alertsResp) == nil {
-								for _, a := range alertsResp.Alerts {
-									if a.State == "firing" {
-										firingAlerts++
-									} else {
-										resolvedAlerts++
-									}
-									alertList = append(alertList, AlertItem{
-										Name:      a.Name,
-										Severity:  a.Severity,
-										State:     a.State,
-										Platform:  p.Name,
-										Timestamp: a.Timestamp,
-									})
-								}
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-
-	// 4. Component health – derive from platform connectivity + internal services
+	// 3. Component health – derive from platform connectivity + internal services
 	type ComponentHealth struct {
 		Name   string `json:"name"`
 		Status string `json:"status"` // healthy / degraded / down
@@ -1097,7 +1396,7 @@ func (h *Handler) GetResourceMonitor(c *gin.Context) {
 		}
 	}
 
-	// 5. AI service and agent statistics (cross-module)
+	// 4. AI service and agent statistics (cross-module)
 	var aiProviderCount int64
 	repository.DB.Model(&model.AIProvider{}).Where("api_key != '' AND is_enabled = ?", true).Count(&aiProviderCount)
 

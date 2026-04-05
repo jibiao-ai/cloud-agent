@@ -681,9 +681,12 @@ func (c *Client) QueryMetrics(expr string, start, end, step int64) (json.RawMess
 	return body, nil
 }
 
-// ListAlerts lists alerts - GET /api/emla/alerts
+// ListAlerts lists alerts from the EasyStack observable service.
+// Uses GET /v1/{project_id}/alerts (ECF 6.2.1 API docs).
+// Optional query parameters: all_tenants, categories, states, severities, start, end.
+// Response format: { "code": 0, "data": { "statistics": {...}, "items": [...] } }
 func (c *Client) ListAlerts(states, categories, severities string) (json.RawMessage, error) {
-	url := fmt.Sprintf("%s/api/emla/alerts?project_id=%s", c.cfg.AuthURL, c.cfg.ProjectID)
+	url := fmt.Sprintf("%s/v1/%s/alerts?all_tenants=true", c.cfg.AuthURL, c.cfg.ProjectID)
 	if states != "" {
 		url += "&states=" + states
 	}
