@@ -109,13 +109,53 @@ func (h *Handler) CreateAgent(c *gin.Context) {
 
 func (h *Handler) UpdateAgent(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 32)
-	var agent model.Agent
-	if err := c.ShouldBindJSON(&agent); err != nil {
+
+	// Parse update request as a map to support partial updates
+	var req struct {
+		Name         string   `json:"name"`
+		Description  string   `json:"description"`
+		SystemPrompt string   `json:"system_prompt"`
+		Model        string   `json:"model"`
+		Temperature  *float64 `json:"temperature"` // pointer to distinguish 0 from absent
+		MaxTokens    *int     `json:"max_tokens"`  // pointer to distinguish 0 from absent
+		IsActive     *bool    `json:"is_active"`   // pointer to distinguish false from absent
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "invalid request")
 		return
 	}
-	agent.ID = uint(id)
-	if err := h.chatService.UpdateAgent(&agent); err != nil {
+
+	// Fetch existing agent first
+	agent, err := h.chatService.GetAgent(uint(id))
+	if err != nil {
+		response.BadRequest(c, "agent not found")
+		return
+	}
+
+	// Apply partial updates — only overwrite fields that are provided
+	if req.Name != "" {
+		agent.Name = req.Name
+	}
+	if req.Description != "" {
+		agent.Description = req.Description
+	}
+	if req.SystemPrompt != "" {
+		agent.SystemPrompt = req.SystemPrompt
+	}
+	if req.Model != "" {
+		agent.Model = req.Model
+	}
+	if req.Temperature != nil {
+		agent.Temperature = *req.Temperature
+	}
+	if req.MaxTokens != nil {
+		agent.MaxTokens = *req.MaxTokens
+	}
+	if req.IsActive != nil {
+		agent.IsActive = *req.IsActive
+	}
+
+	if err := h.chatService.UpdateAgent(agent); err != nil {
 		response.InternalError(c, err.Error())
 		return
 	}
