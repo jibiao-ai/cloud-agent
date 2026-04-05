@@ -200,6 +200,23 @@ func (s *ChatService) CreateScheduledTask(task *model.ScheduledTask) error {
 	return repository.DB.Create(task).Error
 }
 
+// GetScheduledTask returns a single scheduled task by ID
+func (s *ChatService) GetScheduledTask(id uint) (*model.ScheduledTask, error) {
+	var task model.ScheduledTask
+	err := repository.DB.First(&task, id).Error
+	return &task, err
+}
+
+// UpdateScheduledTask updates an existing scheduled task
+func (s *ChatService) UpdateScheduledTask(task *model.ScheduledTask) error {
+	return repository.DB.Save(task).Error
+}
+
+// DeleteScheduledTask soft-deletes a scheduled task
+func (s *ChatService) DeleteScheduledTask(id uint) error {
+	return repository.DB.Delete(&model.ScheduledTask{}, id).Error
+}
+
 // GetDashboardStats returns dashboard statistics
 func (s *ChatService) GetDashboardStats(userID uint) (map[string]interface{}, error) {
 	var conversationCount int64

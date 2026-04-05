@@ -442,6 +442,55 @@ func (h *Handler) CreateScheduledTask(c *gin.Context) {
 	response.Success(c, task)
 }
 
+func (h *Handler) UpdateScheduledTask(c *gin.Context) {
+	id, _ := strconv.ParseUint(c.Param("id"), 10, 32)
+	var req struct {
+		Name     string `json:"name"`
+		CronExpr string `json:"cron_expr"`
+		TaskType string `json:"task_type"`
+		Config   string `json:"config"`
+		IsActive *bool  `json:"is_active"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "invalid request")
+		return
+	}
+	task, err := h.chatService.GetScheduledTask(uint(id))
+	if err != nil {
+		response.BadRequest(c, "task not found")
+		return
+	}
+	if req.Name != "" {
+		task.Name = req.Name
+	}
+	if req.CronExpr != "" {
+		task.CronExpr = req.CronExpr
+	}
+	if req.TaskType != "" {
+		task.TaskType = req.TaskType
+	}
+	if req.Config != "" {
+		task.Config = req.Config
+	}
+	if req.IsActive != nil {
+		task.IsActive = *req.IsActive
+	}
+	if err := h.chatService.UpdateScheduledTask(task); err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+	response.Success(c, task)
+}
+
+func (h *Handler) DeleteScheduledTask(c *gin.Context) {
+	id, _ := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err := h.chatService.DeleteScheduledTask(uint(id)); err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+	response.Success(c, nil)
+}
+
 // ==================== Users (Admin) ====================
 
 func (h *Handler) ListUsers(c *gin.Context) {
