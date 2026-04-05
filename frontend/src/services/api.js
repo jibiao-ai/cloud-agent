@@ -78,6 +78,8 @@ export const createWorkflow = (data) => api.post('/workflows', data);
 // Scheduled Tasks
 export const getScheduledTasks = () => api.get('/scheduled-tasks');
 export const createScheduledTask = (data) => api.post('/scheduled-tasks', data);
+export const updateScheduledTask = (id, data) => api.put(`/scheduled-tasks/${id}`, data);
+export const deleteScheduledTask = (id) => api.delete(`/scheduled-tasks/${id}`);
 
 // Users (Admin)
 export const getUsers = () => api.get('/users');

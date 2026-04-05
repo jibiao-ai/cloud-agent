@@ -129,6 +129,8 @@ func main() {
 			// Scheduled Tasks
 			auth.GET("/scheduled-tasks", h.ListScheduledTasks)
 			auth.POST("/scheduled-tasks", h.CreateScheduledTask)
+			auth.PUT("/scheduled-tasks/:id", h.UpdateScheduledTask)
+			auth.DELETE("/scheduled-tasks/:id", h.DeleteScheduledTask)
 
 			// Task Logs
 			auth.GET("/task-logs", h.ListTaskLogs)
