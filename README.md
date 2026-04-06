@@ -71,8 +71,8 @@
 
 ```bash
 # 克隆项目
-git clone https://github.com/jibiao-ai/cloud-agent.git
-cd cloud-agent
+git clone https://github.com/jibiao-ai/opsgenie-ai.git
+cd opsgenie-ai
 
 # 启动所有服务（MySQL + RabbitMQ + Backend + Frontend）
 docker compose up -d
@@ -110,10 +110,10 @@ npm run dev
 | `DB_DRIVER` | `mysql` | 数据库驱动，可选 `mysql` / `sqlite` |
 | `DB_HOST` | `mysql` | MySQL 主机名 |
 | `DB_PORT` | `3306` | MySQL 端口 |
-| `DB_NAME` | `cloud_agent` | 数据库名 |
+| `DB_NAME` | `opsgenie_ai` | 数据库名 |
 | `DB_USER` | `root` | 数据库用户名 |
 | `DB_PASSWORD` | `password` | 数据库密码 |
-| `DB_PATH` | `cloud_agent.db` | SQLite 文件路径（仅 sqlite 模式） |
+| `DB_PATH` | `opsgenie_ai.db` | SQLite 文件路径（仅 sqlite 模式） |
 | `JWT_SECRET` | `change-me-in-production` | JWT 签名密钥，**生产环境必须修改** |
 | `SERVER_PORT` | `8080` | 后端监听端口 |
 | `RABBITMQ_URL` | `amqp://guest:guest@rabbitmq:5672/` | RabbitMQ 连接地址（可选） |

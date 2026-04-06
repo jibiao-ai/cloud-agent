@@ -61,7 +61,7 @@ func Load() *Config {
 			Port:     getEnvInt("DB_PORT", 3306),
 			User:     getEnv("DB_USER", "cloudagent"),
 			Password: getEnv("DB_PASSWORD", "cloudagent123"),
-			DBName:   getEnv("DB_NAME", "cloud_agent"),
+			DBName:   getEnv("DB_NAME", "opsgenie_ai"),
 		},
 		RabbitMQ: RabbitMQConfig{
 			Host:     getEnv("RABBITMQ_HOST", "rabbitmq"),

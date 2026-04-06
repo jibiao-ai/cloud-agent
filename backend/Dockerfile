@@ -60,8 +60,8 @@ COPY --from=builder /app/server .
 #     - "zstack.internal.corp:10.0.0.200"
 #
 # To verify DNS resolution inside the container:
-#   docker exec cloud-agent-backend nslookup keystone.easystack.local
-#   docker exec cloud-agent-backend cat /etc/hosts
+#   docker exec opsgenie-ai-backend nslookup keystone.easystack.local
+#   docker exec opsgenie-ai-backend cat /etc/hosts
 # ========================
 
 EXPOSE 8080

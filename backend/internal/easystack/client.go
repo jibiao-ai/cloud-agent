@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/jibiao-ai/cloud-agent/internal/config"
-	"github.com/jibiao-ai/cloud-agent/pkg/logger"
+	"github.com/jibiao-ai/opsgenie-ai/internal/config"
+	"github.com/jibiao-ai/opsgenie-ai/pkg/logger"
 )
 
 // Client is the EasyStack API client based on ECF 6.2.1

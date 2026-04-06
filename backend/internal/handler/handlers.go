@@ -17,11 +17,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
-	"github.com/jibiao-ai/cloud-agent/internal/model"
-	"github.com/jibiao-ai/cloud-agent/internal/repository"
-	"github.com/jibiao-ai/cloud-agent/internal/service"
-	"github.com/jibiao-ai/cloud-agent/pkg/logger"
-	"github.com/jibiao-ai/cloud-agent/pkg/response"
+	"github.com/jibiao-ai/opsgenie-ai/internal/model"
+	"github.com/jibiao-ai/opsgenie-ai/internal/repository"
+	"github.com/jibiao-ai/opsgenie-ai/internal/service"
+	"github.com/jibiao-ai/opsgenie-ai/pkg/logger"
+	"github.com/jibiao-ai/opsgenie-ai/pkg/response"
 )
 
 type Handler struct {

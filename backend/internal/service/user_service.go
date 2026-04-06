@@ -5,8 +5,8 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/jibiao-ai/cloud-agent/internal/model"
-	"github.com/jibiao-ai/cloud-agent/internal/repository"
+	"github.com/jibiao-ai/opsgenie-ai/internal/model"
+	"github.com/jibiao-ai/opsgenie-ai/internal/repository"
 )
 
 func GetUserByID(id uint, user *model.User) error {

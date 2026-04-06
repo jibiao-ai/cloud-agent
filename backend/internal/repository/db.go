@@ -5,9 +5,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/jibiao-ai/cloud-agent/internal/config"
-	"github.com/jibiao-ai/cloud-agent/internal/model"
-	"github.com/jibiao-ai/cloud-agent/pkg/logger"
+	"github.com/jibiao-ai/opsgenie-ai/internal/config"
+	"github.com/jibiao-ai/opsgenie-ai/internal/model"
+	"github.com/jibiao-ai/opsgenie-ai/pkg/logger"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/sqlite"
@@ -29,7 +29,7 @@ func InitDB(cfg config.DatabaseConfig) error {
 	case "sqlite":
 		dbPath := os.Getenv("DB_PATH")
 		if dbPath == "" {
-			dbPath = "cloud_agent.db"
+			dbPath = "opsgenie_ai.db"
 		}
 		db, err = gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
 		if err != nil {

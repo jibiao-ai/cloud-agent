@@ -36,6 +36,7 @@ rabbitmq_data/
 *.test
 *.out
 cloud_agent.db
+opsgenie_ai.db
 backend/server
 node_modules/
 screenshots/

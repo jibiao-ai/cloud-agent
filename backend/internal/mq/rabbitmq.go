@@ -7,8 +7,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/jibiao-ai/cloud-agent/internal/config"
-	"github.com/jibiao-ai/cloud-agent/pkg/logger"
+	"github.com/jibiao-ai/opsgenie-ai/internal/config"
+	"github.com/jibiao-ai/opsgenie-ai/pkg/logger"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 

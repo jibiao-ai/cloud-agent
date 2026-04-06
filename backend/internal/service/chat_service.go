@@ -3,10 +3,10 @@ package service
 import (
 	"encoding/json"
 
-	agentpkg "github.com/jibiao-ai/cloud-agent/internal/agent"
-	"github.com/jibiao-ai/cloud-agent/internal/model"
-	"github.com/jibiao-ai/cloud-agent/internal/repository"
-	"github.com/jibiao-ai/cloud-agent/pkg/logger"
+	agentpkg "github.com/jibiao-ai/opsgenie-ai/internal/agent"
+	"github.com/jibiao-ai/opsgenie-ai/internal/model"
+	"github.com/jibiao-ai/opsgenie-ai/internal/repository"
+	"github.com/jibiao-ai/opsgenie-ai/pkg/logger"
 )
 
 type ChatService struct {

@@ -5,8 +5,8 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/jibiao-ai/cloud-agent/internal/service"
-	"github.com/jibiao-ai/cloud-agent/pkg/response"
+	"github.com/jibiao-ai/opsgenie-ai/internal/service"
+	"github.com/jibiao-ai/opsgenie-ai/pkg/response"
 )
 
 func AuthMiddleware() gin.HandlerFunc {
