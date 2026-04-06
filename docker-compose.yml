@@ -70,7 +70,7 @@ services:
       RABBITMQ_USER: guest
       RABBITMQ_PASSWORD: guest
       # EasyStack Configuration
-      EASYSTACK_AUTH_URL: ${EASYSTACK_AUTH_URL:-https://keystone.example.com}
+      EASYSTACK_AUTH_URL: ${EASYSTACK_AUTH_URL:-http://keystone.example.com}
       EASYSTACK_USERNAME: ${EASYSTACK_USERNAME:-admin}
       EASYSTACK_PASSWORD: ${EASYSTACK_PASSWORD:-}
       EASYSTACK_DOMAIN: ${EASYSTACK_DOMAIN:-default}
