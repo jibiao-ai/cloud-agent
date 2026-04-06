@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jibiao-ai/cloud-agent/internal/model"
-	"github.com/jibiao-ai/cloud-agent/internal/repository"
+	"github.com/jibiao-ai/opsgenie-ai/internal/model"
+	"github.com/jibiao-ai/opsgenie-ai/internal/repository"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -20,7 +20,7 @@ var jwtSecret = func() []byte {
 	if s := os.Getenv("JWT_SECRET"); s != "" {
 		return []byte(s)
 	}
-	return []byte("cloud-agent-secret-key-2024")
+	return []byte("opsgenie-ai-secret-key-2024")
 }()
 
 type LoginRequest struct {

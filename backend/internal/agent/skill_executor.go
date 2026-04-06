@@ -14,8 +14,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/jibiao-ai/cloud-agent/internal/model"
-	"github.com/jibiao-ai/cloud-agent/pkg/logger"
+	"github.com/jibiao-ai/opsgenie-ai/internal/model"
+	"github.com/jibiao-ai/opsgenie-ai/pkg/logger"
 )
 
 // SkillExecutor authenticates to a cloud platform and executes tool calls.

@@ -4,11 +4,11 @@ services:
   # MySQL Database
   mysql:
     image: mysql:8.0
-    container_name: cloud-agent-mysql
+    container_name: opsgenie-ai-mysql
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: root123
-      MYSQL_DATABASE: cloud_agent
+      MYSQL_DATABASE: opsgenie_ai
       MYSQL_USER: cloudagent
       MYSQL_PASSWORD: cloudagent123
     ports:
@@ -23,12 +23,12 @@ services:
       timeout: 5s
       retries: 10
     networks:
-      - cloud-agent-net
+      - opsgenie-ai-net
 
   # RabbitMQ Message Queue
   rabbitmq:
     image: rabbitmq:3.13-management-alpine
-    container_name: cloud-agent-rabbitmq
+    container_name: opsgenie-ai-rabbitmq
     restart: unless-stopped
     environment:
       RABBITMQ_DEFAULT_USER: guest
@@ -44,7 +44,7 @@ services:
       timeout: 5s
       retries: 10
     networks:
-      - cloud-agent-net
+      - opsgenie-ai-net
 
   # Go Backend API Server
   backend:
@@ -52,7 +52,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
       network: host
-    container_name: cloud-agent-backend
+    container_name: opsgenie-ai-backend
     restart: unless-stopped
     environment:
       # Server
@@ -63,7 +63,7 @@ services:
       DB_PORT: "3306"
       DB_USER: cloudagent
       DB_PASSWORD: cloudagent123
-      DB_NAME: cloud_agent
+      DB_NAME: opsgenie_ai
       # RabbitMQ
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_PORT: "5672"
@@ -86,7 +86,7 @@ services:
       # Logging
       LOG_LEVEL: info
       # JWT Secret (override in production!)
-      JWT_SECRET: ${JWT_SECRET:-cloud-agent-secret-key-2024}
+      JWT_SECRET: ${JWT_SECRET:-opsgenie-ai-secret-key-2024}
     volumes:
       # Mount host /etc/hosts so the backend container can resolve
       # domain names used by cloud platforms (EasyStack/ZStack) that
@@ -110,7 +110,7 @@ services:
       rabbitmq:
         condition: service_started
     networks:
-      - cloud-agent-net
+      - opsgenie-ai-net
 
   # React Frontend (Nginx - serves static files and proxies /api to backend)
   frontend:
@@ -118,17 +118,17 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       network: host
-    container_name: cloud-agent-frontend
+    container_name: opsgenie-ai-frontend
     restart: unless-stopped
     ports:
       - "0.0.0.0:80:80"
     depends_on:
       - backend
     networks:
-      - cloud-agent-net
+      - opsgenie-ai-net
 
 networks:
-  cloud-agent-net:
+  opsgenie-ai-net:
     driver: bridge
 
 volumes:

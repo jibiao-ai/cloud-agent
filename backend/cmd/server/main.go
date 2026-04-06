@@ -9,15 +9,15 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
-	"github.com/jibiao-ai/cloud-agent/internal/agent"
-	"github.com/jibiao-ai/cloud-agent/internal/config"
-	"github.com/jibiao-ai/cloud-agent/internal/easystack"
-	"github.com/jibiao-ai/cloud-agent/internal/handler"
-	"github.com/jibiao-ai/cloud-agent/internal/middleware"
-	"github.com/jibiao-ai/cloud-agent/internal/mq"
-	"github.com/jibiao-ai/cloud-agent/internal/repository"
-	"github.com/jibiao-ai/cloud-agent/internal/service"
-	"github.com/jibiao-ai/cloud-agent/pkg/logger"
+	"github.com/jibiao-ai/opsgenie-ai/internal/agent"
+	"github.com/jibiao-ai/opsgenie-ai/internal/config"
+	"github.com/jibiao-ai/opsgenie-ai/internal/easystack"
+	"github.com/jibiao-ai/opsgenie-ai/internal/handler"
+	"github.com/jibiao-ai/opsgenie-ai/internal/middleware"
+	"github.com/jibiao-ai/opsgenie-ai/internal/mq"
+	"github.com/jibiao-ai/opsgenie-ai/internal/repository"
+	"github.com/jibiao-ai/opsgenie-ai/internal/service"
+	"github.com/jibiao-ai/opsgenie-ai/pkg/logger"
 )
 
 func main() {

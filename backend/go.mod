@@ -1,4 +1,4 @@
-module github.com/jibiao-ai/cloud-agent
+module github.com/jibiao-ai/opsgenie-ai
 
 go 1.22
 
