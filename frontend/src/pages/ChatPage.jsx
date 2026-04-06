@@ -62,6 +62,30 @@ export default function ChatPage() {
     }
   }, [currentConversation?.id]);
 
+  // When selected agent changes, switch to the latest conversation belonging to
+  // that agent — or clear the current conversation so the empty-state placeholder
+  // shows the new agent's info.
+  useEffect(() => {
+    if (!selectedAgent) return;
+
+    // If the current conversation already belongs to this agent, do nothing.
+    if (currentConversation && currentConversation.agent_id === selectedAgent.id) return;
+    // Also check the embedded agent object (backend may populate either field).
+    if (currentConversation?.agent?.id === selectedAgent.id) return;
+
+    // Look for an existing conversation for the newly-selected agent.
+    const agentConv = conversations.find(
+      (c) => c.agent_id === selectedAgent.id || c.agent?.id === selectedAgent.id
+    );
+    if (agentConv) {
+      setCurrentConversation(agentConv);
+    } else {
+      // No conversation for this agent yet — clear so user sees the empty state.
+      setCurrentConversation(null);
+      setMessages([]);
+    }
+  }, [selectedAgent?.id]);
+
   const loadAgents = async () => {
     try {
       const res = await getAgents();
@@ -384,7 +408,15 @@ export default function ChatPage() {
               conversations.map((conv) => (
                 <button
                   key={conv.id}
-                  onClick={() => setCurrentConversation(conv)}
+                  onClick={() => {
+                    setCurrentConversation(conv);
+                    // Sync the selected agent with the conversation's agent
+                    const convAgentId = conv.agent_id || conv.agent?.id;
+                    if (convAgentId && convAgentId !== selectedAgent?.id) {
+                      const matchedAgent = agents.find((a) => a.id === convAgentId);
+                      if (matchedAgent) setSelectedAgent(matchedAgent);
+                    }
+                  }}
                   className={`w-full flex items-center justify-between px-3 py-2.5 text-left transition group ${
                     currentConversation?.id === conv.id
                       ? 'bg-[#EEE9FB] border-r-2 border-[#513CC8]'
