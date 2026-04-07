@@ -1336,116 +1336,98 @@ type AlertItem struct {
 }
 
 // fetchEasyStackAlerts fetches alerts from the EasyStack ECMS alert API.
-// Uses GET /apis/monitoring/v1/ecms/alerts (Prometheus-compatible ECMS endpoint).
-// Response format varies: may return { "code": 0, "data": { "statistics": {...}, "items": [...] } }
-// or Prometheus-style alert list.
+// EasyStack ECMS uses two separate queries:
+//   - GET /apis/monitoring/v1/ecms/alerts          → returns firing (active) alerts
+//   - GET /apis/monitoring/v1/ecms/alerts?status=resolved → returns resolved alerts
 func fetchEasyStackAlerts(client *http.Client, p model.CloudPlatform, token, platformName string) (firing, resolved int, alerts []AlertItem) {
 	if p.ProjectID == "" {
 		return 0, 0, nil
 	}
 	emlaURL := resolveEasyStackServiceURL(p, "emla")
-	alertsURL := fmt.Sprintf("%s/apis/monitoring/v1/ecms/alerts", emlaURL)
-	req, err := http.NewRequest("GET", alertsURL, nil)
-	if err != nil {
-		logger.Log.Warnf("EasyStack: create alerts request failed: %v", err)
-		return 0, 0, nil
-	}
-	req.Header.Set("X-Auth-Token", token)
-	req.Header.Set("Accept", "application/json")
-	resp, err := client.Do(req)
-	if err != nil {
-		logger.Log.Warnf("EasyStack: fetch alerts from %s failed: %v", alertsURL, err)
-		return 0, 0, nil
-	}
-	defer resp.Body.Close()
-	body, _ := io.ReadAll(resp.Body)
+	baseAlertsURL := fmt.Sprintf("%s/apis/monitoring/v1/ecms/alerts", emlaURL)
 
-	if resp.StatusCode >= 400 {
-		logger.Log.Warnf("EasyStack: fetch alerts HTTP %d from %s: %s", resp.StatusCode, alertsURL, string(body[:min(len(body), 200)]))
-		return 0, 0, nil
-	}
-	logger.Log.Infof("EasyStack: fetch alerts from %s → HTTP %d (%d bytes)", alertsURL, resp.StatusCode, len(body))
-
-	// EasyStack observable service response format:
-	// { "code": 0, "data": { "statistics": { "total": N, "critical": N, "warning": N, "info": N },
-	//   "items": [ { "alertNameCN": "...", "severity": "critical", "status": "firing", "startsAt": "..." } ] } }
-	var alertsResp struct {
-		Code int `json:"code"`
-		Data struct {
-			Statistics struct {
-				Total    int `json:"total"`
-				Critical int `json:"critical"`
-				Warning  int `json:"warning"`
-				Info     int `json:"info"`
-			} `json:"statistics"`
-			Items []struct {
-				AlertNameCN string `json:"alertNameCN"`
-				AlertNameEN string `json:"alertNameEN"`
-				Severity    string `json:"severity"`
-				Status      string `json:"status"`
-				StartsAt    string `json:"startsAt"`
-				EndsAt      string `json:"endsAt"`
-				UpdatedAt   string `json:"updatedAt"`
-			} `json:"items"`
-		} `json:"data"`
-	}
-	if err := json.Unmarshal(body, &alertsResp); err != nil {
-		// Fallback: try legacy format { "alerts": [...] }
-		var legacyResp struct {
-			Alerts []struct {
-				Name      string `json:"name"`
-				Severity  string `json:"severity"`
-				State     string `json:"state"`
-				Timestamp string `json:"timestamp"`
-			} `json:"alerts"`
+	// Helper: fetch one page of alerts from a URL and parse the response
+	fetchAlerts := func(url, state string) (int, []AlertItem) {
+		req, err := http.NewRequest("GET", url, nil)
+		if err != nil {
+			logger.Log.Warnf("EasyStack: create alerts request failed (%s): %v", state, err)
+			return 0, nil
 		}
-		if json.Unmarshal(body, &legacyResp) == nil && len(legacyResp.Alerts) > 0 {
-			for _, a := range legacyResp.Alerts {
-				state := a.State
-				if state == "firing" {
-					firing++
-				} else {
-					resolved++
-				}
-				alerts = append(alerts, AlertItem{
-					Name:      a.Name,
-					Severity:  a.Severity,
-					State:     state,
-					Platform:  platformName,
-					Timestamp: a.Timestamp,
-				})
+		req.Header.Set("X-Auth-Token", token)
+		req.Header.Set("Accept", "application/json")
+		resp, err := client.Do(req)
+		if err != nil {
+			logger.Log.Warnf("EasyStack: fetch %s alerts from %s failed: %v", state, url, err)
+			return 0, nil
+		}
+		defer resp.Body.Close()
+		body, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode >= 400 {
+			logger.Log.Warnf("EasyStack: fetch %s alerts HTTP %d: %s", state, resp.StatusCode, string(body[:min(len(body), 200)]))
+			return 0, nil
+		}
+		logger.Log.Infof("EasyStack: fetch %s alerts from %s → HTTP %d (%d bytes)", state, url, resp.StatusCode, len(body))
+
+		// Parse EasyStack ECMS response
+		var alertsResp struct {
+			Code int `json:"code"`
+			Data struct {
+				Statistics struct {
+					Total    int `json:"total"`
+					Critical int `json:"critical"`
+					Warning  int `json:"warning"`
+					Info     int `json:"info"`
+				} `json:"statistics"`
+				Items []struct {
+					AlertNameCN string `json:"alertNameCN"`
+					AlertNameEN string `json:"alertNameEN"`
+					Severity    string `json:"severity"`
+					Status      string `json:"status"`
+					StartsAt    string `json:"startsAt"`
+					EndsAt      string `json:"endsAt"`
+					UpdatedAt   string `json:"updatedAt"`
+				} `json:"items"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal(body, &alertsResp); err != nil {
+			logger.Log.Warnf("EasyStack: parse %s alerts response failed: %v", state, err)
+			return 0, nil
+		}
+		var items []AlertItem
+		for _, item := range alertsResp.Data.Items {
+			name := item.AlertNameCN
+			if name == "" {
+				name = item.AlertNameEN
 			}
+			ts := item.StartsAt
+			if ts == "" {
+				ts = item.UpdatedAt
+			}
+			items = append(items, AlertItem{
+				Name:      name,
+				Severity:  item.Severity,
+				State:     state,
+				Platform:  platformName,
+				Timestamp: ts,
+			})
 		}
-		return firing, resolved, alerts
+		count := len(items)
+		// Also use statistics.total if items is empty but total > 0
+		if count == 0 && alertsResp.Data.Statistics.Total > 0 {
+			count = alertsResp.Data.Statistics.Total
+		}
+		return count, items
 	}
 
-	// Process standard EasyStack observable service response
-	for _, item := range alertsResp.Data.Items {
-		// Map EasyStack "status" to our unified "state"
-		state := item.Status // "firing", "silenced", "resolved"
-		if state == "firing" {
-			firing++
-		} else {
-			resolved++
-		}
-		// Prefer Chinese alert name, fall back to English
-		name := item.AlertNameCN
-		if name == "" {
-			name = item.AlertNameEN
-		}
-		// Use startsAt as timestamp
-		ts := item.StartsAt
-		if ts == "" {
-			ts = item.UpdatedAt
-		}
-		alerts = append(alerts, AlertItem{
-			Name:      name,
-			Severity:  item.Severity,
-			State:     state,
-			Platform:  platformName,
-			Timestamp: ts,
-		})
-	}
+	// 1. Fetch firing alerts (default, no status param)
+	firing, firingAlerts := fetchAlerts(baseAlertsURL, "firing")
+	logger.Log.Infof("[ResourceMonitor] Platform %s: firing alerts=%d", platformName, firing)
+
+	// 2. Fetch resolved alerts (?status=resolved)
+	resolved, resolvedAlerts := fetchAlerts(baseAlertsURL+"?status=resolved", "resolved")
+	logger.Log.Infof("[ResourceMonitor] Platform %s: resolved alerts=%d", platformName, resolved)
+
+	alerts = append(firingAlerts, resolvedAlerts...)
 	return firing, resolved, alerts
 }
 
