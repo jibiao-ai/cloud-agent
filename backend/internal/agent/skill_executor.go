@@ -323,11 +323,11 @@ func (se *SkillExecutor) executeEasyStack(p model.CloudPlatform, token, toolName
 	switch toolName {
 	// Compute
 	case "list_servers":
-		result, err = doReq("GET", fmt.Sprintf("%s/v2.1/servers/detail", serviceURL), nil)
+		result, err = doReq("GET", fmt.Sprintf("%s/v2.1/%s/servers/detail?all_tenants=1", serviceURL, projectID), nil)
 	case "get_server":
-		result, err = doReq("GET", fmt.Sprintf("%s/v2.1/servers/%s", serviceURL, getString("server_id")), nil)
+		result, err = doReq("GET", fmt.Sprintf("%s/v2.1/%s/servers/%s", serviceURL, projectID, getString("server_id")), nil)
 	case "create_server":
-		result, err = doReq("POST", fmt.Sprintf("%s/v2.1/servers", serviceURL), map[string]interface{}{
+		result, err = doReq("POST", fmt.Sprintf("%s/v2.1/%s/servers", serviceURL, projectID), map[string]interface{}{
 			"server": map[string]interface{}{
 				"name": getString("name"), "flavorRef": getString("flavor_id"),
 				"networks": []map[string]string{{"uuid": getString("network_id")}},
@@ -338,13 +338,13 @@ func (se *SkillExecutor) executeEasyStack(p model.CloudPlatform, token, toolName
 			},
 		})
 	case "start_server":
-		_, err = doReq("POST", fmt.Sprintf("%s/v2.1/servers/%s/action", serviceURL, getString("server_id")),
+		_, err = doReq("POST", fmt.Sprintf("%s/v2.1/%s/servers/%s/action", serviceURL, projectID, getString("server_id")),
 			map[string]interface{}{"os-start": nil})
 		if err == nil {
 			return `{"status":"success","message":"云主机启动命令已发送"}`, nil
 		}
 	case "stop_server":
-		_, err = doReq("POST", fmt.Sprintf("%s/v2.1/servers/%s/action", serviceURL, getString("server_id")),
+		_, err = doReq("POST", fmt.Sprintf("%s/v2.1/%s/servers/%s/action", serviceURL, projectID, getString("server_id")),
 			map[string]interface{}{"os-stop": nil})
 		if err == nil {
 			return `{"status":"success","message":"云主机关闭命令已发送"}`, nil
@@ -354,23 +354,23 @@ func (se *SkillExecutor) executeEasyStack(p model.CloudPlatform, token, toolName
 		if rt == "" {
 			rt = "SOFT"
 		}
-		_, err = doReq("POST", fmt.Sprintf("%s/v2.1/servers/%s/action", serviceURL, getString("server_id")),
+		_, err = doReq("POST", fmt.Sprintf("%s/v2.1/%s/servers/%s/action", serviceURL, projectID, getString("server_id")),
 			map[string]interface{}{"reboot": map[string]string{"type": rt}})
 		if err == nil {
 			return `{"status":"success","message":"云主机重启命令已发送"}`, nil
 		}
 	case "delete_server":
-		_, err = doReq("DELETE", fmt.Sprintf("%s/v2.1/servers/%s", serviceURL, getString("server_id")), nil)
+		_, err = doReq("DELETE", fmt.Sprintf("%s/v2.1/%s/servers/%s", serviceURL, projectID, getString("server_id")), nil)
 		if err == nil {
 			return `{"status":"success","message":"云主机删除命令已发送"}`, nil
 		}
 	case "list_flavors":
-		result, err = doReq("GET", fmt.Sprintf("%s/v2.1/flavors/detail", serviceURL), nil)
+		result, err = doReq("GET", fmt.Sprintf("%s/v2.1/%s/flavors/detail", serviceURL, projectID), nil)
 	case "list_images":
 		result, err = doReq("GET", fmt.Sprintf("%s/v2/images", serviceURL), nil)
 	// Storage
 	case "list_volumes":
-		result, err = doReq("GET", fmt.Sprintf("%s/v2/%s/volumes", serviceURL, projectID), nil)
+		result, err = doReq("GET", fmt.Sprintf("%s/v3/%s/volumes/detail?all_tenants=1", serviceURL, projectID), nil)
 	case "create_volume":
 		volParams := map[string]interface{}{"name": getString("name"), "size": getInt("size")}
 		if vt := getString("volume_type"); vt != "" {
@@ -382,33 +382,32 @@ func (se *SkillExecutor) executeEasyStack(p model.CloudPlatform, token, toolName
 		if imgRef := getString("imageRef"); imgRef != "" {
 			volParams["imageRef"] = imgRef
 		}
-		result, err = doReq("POST", fmt.Sprintf("%s/v2/%s/volumes", serviceURL, projectID), map[string]interface{}{"volume": volParams})
+		result, err = doReq("POST", fmt.Sprintf("%s/v3/%s/volumes", serviceURL, projectID), map[string]interface{}{"volume": volParams})
 	case "delete_volume":
-		_, err = doReq("DELETE", fmt.Sprintf("%s/v2/%s/volumes/%s", serviceURL, projectID, getString("volume_id")), nil)
+		_, err = doReq("DELETE", fmt.Sprintf("%s/v3/%s/volumes/%s", serviceURL, projectID, getString("volume_id")), nil)
 		if err == nil {
 			return `{"status":"success","message":"云硬盘删除命令已发送"}`, nil
 		}
 	case "extend_volume":
-		_, err = doReq("POST", fmt.Sprintf("%s/v2/%s/volumes/%s/action", serviceURL, projectID, getString("volume_id")),
+		_, err = doReq("POST", fmt.Sprintf("%s/v3/%s/volumes/%s/action", serviceURL, projectID, getString("volume_id")),
 			map[string]interface{}{"os-extend": map[string]int{"new_size": getInt("new_size")}})
 		if err == nil {
 			return `{"status":"success","message":"云硬盘扩容命令已发送"}`, nil
 		}
 	case "list_volume_snapshots":
-		result, err = doReq("GET", fmt.Sprintf("%s/v2/%s/snapshots", serviceURL, projectID), nil)
+		result, err = doReq("GET", fmt.Sprintf("%s/v3/%s/snapshots/detail", serviceURL, projectID), nil)
 	// -- Volume types (per EasyStack API doc Section 3.1) --
 	case "list_volume_types":
-		result, err = doReq("GET", fmt.Sprintf("%s/v2/%s/types", serviceURL, projectID), nil)
+		result, err = doReq("GET", fmt.Sprintf("%s/v3/%s/types", serviceURL, projectID), nil)
 	// -- Volume detail (per EasyStack API doc Section 4.5) --
 	case "get_volume_detail":
 		volID := getString("volume_id")
 		if volID != "" {
-			result, err = doReq("GET", fmt.Sprintf("%s/v2/%s/volumes/%s", serviceURL, projectID, volID), nil)
+			result, err = doReq("GET", fmt.Sprintf("%s/v3/%s/volumes/%s", serviceURL, projectID, volID), nil)
 		} else {
-			result, err = doReq("GET", fmt.Sprintf("%s/v2/%s/volumes", serviceURL, projectID), nil)
+			result, err = doReq("GET", fmt.Sprintf("%s/v3/%s/volumes/detail", serviceURL, projectID), nil)
 		}
 	// -- Storage pools (per EasyStack API doc Section 4.5 interface 2) --
-	// Note: scheduler-stats is a Cinder v3 endpoint; other Cinder calls use v2
 	case "get_storage_pools":
 		result, err = doReq("GET", fmt.Sprintf("%s/v3/%s/scheduler-stats/get_pools?detail=true", serviceURL, projectID), nil)
 	// -- Attach volume to server (per EasyStack API doc Section 4.3) --
@@ -424,7 +423,7 @@ func (se *SkillExecutor) executeEasyStack(p model.CloudPlatform, token, toolName
 			attachBody["volumeAttachment"].(map[string]interface{})["device"] = dev
 		}
 		// attach_volume uses Nova endpoint (serviceURL already resolved to Nova)
-		result, err = doReq("POST", fmt.Sprintf("%s/v2.1/servers/%s/os-volume_attachments", serviceURL, serverID), attachBody)
+		result, err = doReq("POST", fmt.Sprintf("%s/v2.1/%s/servers/%s/os-volume_attachments", serviceURL, projectID, serverID), attachBody)
 		if err == nil && result == nil {
 			return `{"status":"success","message":"云硬盘挂载命令已发送"}`, nil
 		}
@@ -433,7 +432,7 @@ func (se *SkillExecutor) executeEasyStack(p model.CloudPlatform, token, toolName
 		serverID := getString("server_id")
 		attachmentID := getString("attachment_id")
 		// detach_volume uses Nova endpoint (serviceURL already resolved to Nova)
-		_, err = doReq("DELETE", fmt.Sprintf("%s/v2.1/servers/%s/os-volume_attachments/%s", serviceURL, serverID, attachmentID), nil)
+		_, err = doReq("DELETE", fmt.Sprintf("%s/v2.1/%s/servers/%s/os-volume_attachments/%s", serviceURL, projectID, serverID, attachmentID), nil)
 		if err == nil {
 			return `{"status":"success","message":"云硬盘卸载命令已发送"}`, nil
 		}

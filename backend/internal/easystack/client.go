@@ -312,9 +312,9 @@ func (c *Client) ListKeypairs() (json.RawMessage, error) {
 
 // ==================== Block Storage (Cinder) APIs ====================
 
-// ListVolumes lists all volumes - GET /v2/{project_id}/volumes
+// ListVolumes lists all volumes - GET /v3/{project_id}/volumes/detail?all_tenants=1
 func (c *Client) ListVolumes() (json.RawMessage, error) {
-	url := fmt.Sprintf("%s/v2/%s/volumes", c.cfg.AuthURL, c.cfg.ProjectID)
+	url := fmt.Sprintf("%s/v3/%s/volumes/detail?all_tenants=1", c.cfg.AuthURL, c.cfg.ProjectID)
 	body, status, err := c.doRequest("GET", url, nil)
 	if err != nil {
 		return nil, err
@@ -325,9 +325,9 @@ func (c *Client) ListVolumes() (json.RawMessage, error) {
 	return body, nil
 }
 
-// CreateVolume creates a volume - POST /v2/{project_id}/volumes
+// CreateVolume creates a volume - POST /v3/{project_id}/volumes
 func (c *Client) CreateVolume(params map[string]interface{}) (json.RawMessage, error) {
-	url := fmt.Sprintf("%s/v2/%s/volumes", c.cfg.AuthURL, c.cfg.ProjectID)
+	url := fmt.Sprintf("%s/v3/%s/volumes", c.cfg.AuthURL, c.cfg.ProjectID)
 	reqBody := map[string]interface{}{"volume": params}
 	body, status, err := c.doRequest("POST", url, reqBody)
 	if err != nil {
@@ -339,9 +339,9 @@ func (c *Client) CreateVolume(params map[string]interface{}) (json.RawMessage, e
 	return body, nil
 }
 
-// DeleteVolume deletes a volume - DELETE /v2/{project_id}/volumes/{volume_id}
+// DeleteVolume deletes a volume - DELETE /v3/{project_id}/volumes/{volume_id}
 func (c *Client) DeleteVolume(volumeID string) error {
-	url := fmt.Sprintf("%s/v2/%s/volumes/%s", c.cfg.AuthURL, c.cfg.ProjectID, volumeID)
+	url := fmt.Sprintf("%s/v3/%s/volumes/%s", c.cfg.AuthURL, c.cfg.ProjectID, volumeID)
 	_, status, err := c.doRequest("DELETE", url, nil)
 	if err != nil {
 		return err
@@ -352,9 +352,9 @@ func (c *Client) DeleteVolume(volumeID string) error {
 	return nil
 }
 
-// ExtendVolume extends a volume - POST /v2/{project_id}/volumes/{volume_id}/action
+// ExtendVolume extends a volume - POST /v3/{project_id}/volumes/{volume_id}/action
 func (c *Client) ExtendVolume(volumeID string, newSize int) error {
-	url := fmt.Sprintf("%s/v2/%s/volumes/%s/action", c.cfg.AuthURL, c.cfg.ProjectID, volumeID)
+	url := fmt.Sprintf("%s/v3/%s/volumes/%s/action", c.cfg.AuthURL, c.cfg.ProjectID, volumeID)
 	reqBody := map[string]interface{}{
 		"os-extend": map[string]int{"new_size": newSize},
 	}
@@ -368,9 +368,9 @@ func (c *Client) ExtendVolume(volumeID string, newSize int) error {
 	return nil
 }
 
-// ListVolumeSnapshots lists volume snapshots - GET /v2/{project_id}/snapshots/detail
+// ListVolumeSnapshots lists volume snapshots - GET /v3/{project_id}/snapshots/detail
 func (c *Client) ListVolumeSnapshots() (json.RawMessage, error) {
-	url := fmt.Sprintf("%s/v2/%s/snapshots/detail", c.cfg.AuthURL, c.cfg.ProjectID)
+	url := fmt.Sprintf("%s/v3/%s/snapshots/detail", c.cfg.AuthURL, c.cfg.ProjectID)
 	body, status, err := c.doRequest("GET", url, nil)
 	if err != nil {
 		return nil, err
@@ -381,9 +381,9 @@ func (c *Client) ListVolumeSnapshots() (json.RawMessage, error) {
 	return body, nil
 }
 
-// CreateVolumeSnapshot creates a volume snapshot - POST /v2/{project_id}/snapshots
+// CreateVolumeSnapshot creates a volume snapshot - POST /v3/{project_id}/snapshots
 func (c *Client) CreateVolumeSnapshot(volumeID, name string, force bool) (json.RawMessage, error) {
-	url := fmt.Sprintf("%s/v2/%s/snapshots", c.cfg.AuthURL, c.cfg.ProjectID)
+	url := fmt.Sprintf("%s/v3/%s/snapshots", c.cfg.AuthURL, c.cfg.ProjectID)
 	reqBody := map[string]interface{}{
 		"snapshot": map[string]interface{}{
 			"volume_id": volumeID,

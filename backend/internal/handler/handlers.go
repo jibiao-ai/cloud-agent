@@ -1251,14 +1251,14 @@ func resolveEasyStackServiceURL(p model.CloudPlatform, component string) string 
 }
 
 // fetchEasyStackServers fetches the total VM count from a connected EasyStack platform.
-// Uses Nova API: GET /v2.1/servers/detail (per EasyStack API doc Section 4)
+// Uses Nova API: GET /v2.1/{project_id}/servers/detail?all_tenants=1
 func fetchEasyStackServers(client *http.Client, p model.CloudPlatform, token string) int {
 	if p.ProjectID == "" {
 		logger.Log.Warnf("EasyStack: fetchEasyStackServers skipped for %s: ProjectID is empty", p.Name)
 		return 0
 	}
 	novaURL := resolveEasyStackServiceURL(p, "nova")
-	serversURL := fmt.Sprintf("%s/v2.1/servers/detail", novaURL)
+	serversURL := fmt.Sprintf("%s/v2.1/%s/servers/detail?all_tenants=1", novaURL, p.ProjectID)
 	req, err := http.NewRequest("GET", serversURL, nil)
 	if err != nil {
 		logger.Log.Warnf("EasyStack: create servers request failed: %v", err)
@@ -1289,14 +1289,14 @@ func fetchEasyStackServers(client *http.Client, p model.CloudPlatform, token str
 }
 
 // fetchEasyStackVolumes fetches the total volume count from a connected EasyStack platform.
-// Uses Cinder API: GET /v2/{project_id}/volumes (EasyStack does NOT support /detail suffix)
+// Uses Cinder API: GET /v3/{project_id}/volumes/detail?all_tenants=1
 func fetchEasyStackVolumes(client *http.Client, p model.CloudPlatform, token string) int {
 	if p.ProjectID == "" {
 		logger.Log.Warnf("EasyStack: fetchEasyStackVolumes skipped for %s: ProjectID is empty", p.Name)
 		return 0
 	}
 	cinderURL := resolveEasyStackServiceURL(p, "cinder")
-	volumesURL := fmt.Sprintf("%s/v2/%s/volumes", cinderURL, p.ProjectID)
+	volumesURL := fmt.Sprintf("%s/v3/%s/volumes/detail?all_tenants=1", cinderURL, p.ProjectID)
 	req, err := http.NewRequest("GET", volumesURL, nil)
 	if err != nil {
 		logger.Log.Warnf("EasyStack: create volumes request failed: %v", err)
@@ -1667,11 +1667,11 @@ func (h *Handler) GetResourceMonitor(c *gin.Context) {
 					plat.ProjectID = projectID
 				}
 
-				// Fetch VMs (Nova API: GET /v2.1/servers/detail)
+				// Fetch VMs (Nova API: GET /v2.1/{project_id}/servers/detail?all_tenants=1)
 				pr.VMCount = fetchEasyStackServers(apiClient, plat, token)
 				logger.Log.Infof("[ResourceMonitor] Platform %s: VMs=%d", plat.Name, pr.VMCount)
 
-				// Fetch Volumes (Cinder API: GET /v2/{project_id}/volumes/detail)
+				// Fetch Volumes (Cinder API: GET /v3/{project_id}/volumes/detail?all_tenants=1)
 				pr.VolumeCount = fetchEasyStackVolumes(apiClient, plat, token)
 				logger.Log.Infof("[ResourceMonitor] Platform %s: Volumes=%d", plat.Name, pr.VolumeCount)
 
