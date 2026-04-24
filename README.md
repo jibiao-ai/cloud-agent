@@ -33,7 +33,7 @@
 | 厂商 | 标识 | 推荐模型 | 说明 |
 |------|------|----------|------|
 | OpenAI | 🤖 | gpt-4o | GPT-4o / GPT-4 / GPT-3.5 系列 |
-| DeepSeek | 🔍 | deepseek-chat | 深度求索，高性价比国产大模型 |
+| DeepSeek | 🔍 | deepseek-v4-flash | 深度求索 V4 系列，1M 上下文，支持思考模式 |
 | 通义千问 | ☁️ | qwen-plus | 阿里云 Qwen-Plus / Qwen-Max 系列 |
 | 智谱 GLM | 🧠 | glm-4 | 智谱 AI GLM-4 / GLM-4-Flash 系列 |
 | MiniMax | ⚡ | abab6.5s-chat | MiniMax abab 系列 |
