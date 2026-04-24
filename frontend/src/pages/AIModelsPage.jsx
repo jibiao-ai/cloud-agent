@@ -23,7 +23,7 @@ import toast from 'react-hot-toast';
 // Provider brand colors, icons, and common model hints
 const PROVIDER_META = {
   openai:      { color: 'bg-emerald-100', textColor: 'text-emerald-700', borderColor: 'border-emerald-200', abbr: 'OAI', emoji: '🤖', commonModels: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo'] },
-  deepseek:    { color: 'bg-blue-100',    textColor: 'text-blue-700',    borderColor: 'border-blue-200',    abbr: 'DS',  emoji: '🔍', commonModels: ['deepseek-chat', 'deepseek-reasoner', 'deepseek-coder'] },
+  deepseek:    { color: 'bg-blue-100',    textColor: 'text-blue-700',    borderColor: 'border-blue-200',    abbr: 'DS',  emoji: '🔍', commonModels: ['deepseek-v4-flash', 'deepseek-v4-pro', 'deepseek-chat', 'deepseek-reasoner'] },
   qwen:        { color: 'bg-orange-100',  textColor: 'text-orange-700',  borderColor: 'border-orange-200',  abbr: 'QW',  emoji: '☁️', commonModels: ['qwen-plus', 'qwen-max', 'qwen-turbo', 'qwen-long'] },
   glm:         { color: 'bg-purple-100',  textColor: 'text-purple-700',  borderColor: 'border-purple-200',  abbr: 'GLM', emoji: '🧠', commonModels: ['glm-4', 'glm-4-flash', 'glm-4-plus', 'glm-4-air'] },
   minimax:     { color: 'bg-pink-100',    textColor: 'text-pink-700',    borderColor: 'border-pink-200',    abbr: 'MM',  emoji: '✨', commonModels: ['abab6.5s-chat', 'abab6.5-chat', 'abab5.5-chat'] },

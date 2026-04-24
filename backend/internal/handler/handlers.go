@@ -932,6 +932,12 @@ func (h *Handler) TestAIProvider(c *gin.Context) {
 		},
 		"max_tokens": 10,
 	}
+
+	// DeepSeek V4 models have thinking enabled by default.
+	// For testing, disable thinking to get a fast minimal response.
+	if strings.HasPrefix(strings.ToLower(modelName), "deepseek-v4") {
+		payload["thinking"] = map[string]string{"type": "disabled"}
+	}
 	payloadBytes, _ := json.Marshal(payload)
 
 	// Determine the chat completions endpoint

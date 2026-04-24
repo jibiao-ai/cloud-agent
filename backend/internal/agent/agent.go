@@ -23,11 +23,12 @@ type ToolDefinition struct {
 
 // ChatMessage is an OpenAI-compatible message
 type ChatMessage struct {
-	Role       string          `json:"role"`
-	Content    string          `json:"content,omitempty"`
-	ToolCalls  json.RawMessage `json:"tool_calls,omitempty"`
-	ToolCallID string          `json:"tool_call_id,omitempty"`
-	Name       string          `json:"name,omitempty"`
+	Role             string          `json:"role"`
+	Content          string          `json:"content,omitempty"`
+	ReasoningContent string          `json:"reasoning_content,omitempty"` // DeepSeek V4 thinking chain
+	ToolCalls        json.RawMessage `json:"tool_calls,omitempty"`
+	ToolCallID       string          `json:"tool_call_id,omitempty"`
+	Name             string          `json:"name,omitempty"`
 }
 
 // StreamCallback is called for each streaming chunk
@@ -143,6 +144,7 @@ func (a *Agent) Chat(agentModel model.Agent, history []ChatMessage, userMsg stri
 	supportsTools := a.providerSupportsTools(baseURL)
 	supportsStream := a.providerSupportsStream(baseURL)
 	isSiliconFlow := a.isSiliconFlowProvider(baseURL)
+	isDeepSeekV4 := a.isDeepSeekV4Model(modelName)
 
 	logger.Log.Infof("Chat: agent='%s', model=%s, skills=%d, tools=%d, platform=%v, supportsTools=%v, baseURL=%s",
 		agentModel.Name, modelName, len(skills), len(tools), platform != nil, supportsTools, baseURL)
@@ -160,9 +162,24 @@ func (a *Agent) Chat(agentModel model.Agent, history []ChatMessage, userMsg stri
 			"model":    modelName,
 			"messages": messages,
 		}
-		if agentModel.Temperature > 0 {
+
+		// DeepSeek V4 specific: thinking mode is enabled by default.
+		// In thinking mode, temperature/top_p/presence_penalty/frequency_penalty are ignored.
+		// We disable thinking for tool-calling iterations (better reliability) and enable for final.
+		if isDeepSeekV4 {
+			if len(tools) > 0 && supportsTools {
+				// With tools: enable thinking so the model can reason through tool calls
+				reqBody["thinking"] = map[string]string{"type": "enabled"}
+				reqBody["reasoning_effort"] = "high"
+			} else {
+				// No tools: use thinking mode for better answers
+				reqBody["thinking"] = map[string]string{"type": "enabled"}
+				reqBody["reasoning_effort"] = "high"
+			}
+		} else if agentModel.Temperature > 0 {
 			reqBody["temperature"] = agentModel.Temperature
 		}
+
 		if agentModel.MaxTokens > 0 {
 			if isSiliconFlow {
 				// SiliconFlow uses "max_new_tokens" instead of "max_tokens"
@@ -187,8 +204,9 @@ func (a *Agent) Chat(agentModel model.Agent, history []ChatMessage, userMsg stri
 		var resp struct {
 			Choices []struct {
 				Message struct {
-					Role      string `json:"role"`
-					Content   string `json:"content"`
+					Role             string `json:"role"`
+					Content          string `json:"content"`
+					ReasoningContent string `json:"reasoning_content"` // DeepSeek V4 thinking chain
 					ToolCalls []struct {
 						ID       string `json:"id"`
 						Type     string `json:"type"`
@@ -214,10 +232,12 @@ func (a *Agent) Chat(agentModel model.Agent, history []ChatMessage, userMsg stri
 		// If there are tool calls, execute them via SkillExecutor
 		if len(choice.Message.ToolCalls) > 0 {
 			toolCallsJSON, _ := json.Marshal(choice.Message.ToolCalls)
+			// DeepSeek V4: must pass back reasoning_content for tool call turns
 			messages = append(messages, ChatMessage{
-				Role:      "assistant",
-				Content:   choice.Message.Content,
-				ToolCalls: toolCallsJSON,
+				Role:             "assistant",
+				Content:          choice.Message.Content,
+				ReasoningContent: choice.Message.ReasoningContent,
+				ToolCalls:        toolCallsJSON,
 			})
 
 			for _, tc := range choice.Message.ToolCalls {
@@ -367,6 +387,15 @@ func (a *Agent) getActiveAIConfig() (baseURL string, apiKey string, modelName st
 
 func (a *Agent) isSiliconFlowProvider(baseURL string) bool {
 	return strings.Contains(strings.ToLower(baseURL), "siliconflow")
+}
+
+// isDeepSeekV4Model checks if the model is a DeepSeek V4 model that requires
+// thinking mode parameters and reasoning_content handling.
+func (a *Agent) isDeepSeekV4Model(modelName string) bool {
+	lower := strings.ToLower(modelName)
+	return strings.HasPrefix(lower, "deepseek-v4") ||
+		strings.HasPrefix(lower, "deepseek-v4-flash") ||
+		strings.HasPrefix(lower, "deepseek-v4-pro")
 }
 
 func (a *Agent) providerSupportsTools(baseURL string) bool {

@@ -6,9 +6,8 @@ RUN apk add --no-cache gcc musl-dev git
 
 WORKDIR /app
 
-# Set Go module proxy for reliable downloads
-# Uses Google proxy with direct fallback; switch to goproxy.cn if in China mainland
-ENV GOPROXY=https://goproxy.io,https://proxy.golang.org,direct
+# Set Go module proxy for reliable downloads (China mainland optimized)
+ENV GOPROXY=https://goproxy.cn,https://goproxy.io,direct
 ENV GONOSUMCHECK=*
 ENV GOFLAGS=-mod=mod
 

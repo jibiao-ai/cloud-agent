@@ -217,11 +217,11 @@ func seedDefaultData(db *gorm.DB) {
 		{
 			Name:        "deepseek",
 			Label:       "DeepSeek",
-			BaseURL:     "https://api.deepseek.com/v1",
-			Model:       "deepseek-chat",
+			BaseURL:     "https://api.deepseek.com",
+			Model:       "deepseek-v4-flash",
 			IsDefault:   false,
 			IsEnabled:   true,
-			Description: "深度求索 DeepSeek 系列模型，高性价比国产大模型",
+			Description: "深度求索 DeepSeek V4 系列模型，支持 deepseek-v4-flash / deepseek-v4-pro，1M 上下文",
 		},
 		{
 			Name:        "qwen",

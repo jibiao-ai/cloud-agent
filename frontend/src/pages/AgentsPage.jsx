@@ -204,10 +204,10 @@ function AgentModal({ visible, onClose, onSubmit, editAgent, availableModels, al
                 <label className="block text-sm font-medium text-gray-600 mb-1.5">
                   <span className="flex items-center gap-1.5"><Hash className="w-3.5 h-3.5" />最大令牌数 (Max Tokens)</span>
                 </label>
-                <input type="number" min="256" max="128000" value={form.max_tokens}
+                <input type="number" min="256" max="1000000" value={form.max_tokens}
                   onChange={(e) => setForm({ ...form, max_tokens: parseInt(e.target.value) || 4096 })}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#513CC8] outline-none" />
-                <p className="text-xs text-gray-400 mt-1">控制模型单次回复的最大长度，一般 4096 即可</p>
+                <p className="text-xs text-gray-400 mt-1">控制模型单次回复的最大长度，DeepSeek V4 支持最大 1000000</p>
               </div>
             </div>
 
